@@ -4,180 +4,82 @@ title: Running libTAS using WSL 2
 permalink: /guides/wsl/
 ---
 
-*This guide was written by @SchneeheideWW*
-
 # Introduction
+libTAS is designed for and only works on the Linux operating system. However, users of Windows can access Linux programs quite easily with the [Windows Subsystem for Linux](https://learn.microsoft.com/en-us/windows/wsl/about) (WSL).
 
-So you have learnt about the existence of libTAS and you are really excited to
-TAS some of your favourite PC games but you don't have a computer running a
-Linux-based operating system or you simply want to stick with your Windows OS.
-In that case, using the Windows Subsystem for Linux is probably the most
-efficient approach.
+This guide assumes **Windows 10 64-bit version 2004** or later, and WSL 2 requires Windows 10 64-bit version 1903 or later. If you have an older version of Windows, you will to need to try a [different method](https://github.com/clementgallet/libTAS?tab=readme-ov-file#non-linux-users) to use libTAS.
 
-This guide is meant for people who have very little or no experience with Linux
-so I will take things slowly.
+**Important note**: If you have a specific game in mind, it's not guaranteed to be compatible with libTAS. Ideally, the game should have a native Linux version, meaning it doesn't require [Wine](https://www.winehq.org/) or [Proton](https://github.com/ValveSoftware/Proton). Some games can be ported to Linux, such as certain Unity or GameMaker games. Old Windows games may be playable through [PCem](https://tasvideos.org/EmulatorResources/PCem). Most Adobe Flash games work well with [Ruffle](https://tasvideos.org/EmulatorResources/Ruffle). You may wish to ask in the [libTAS Discord server](https://discord.gg/3MBVAzU) about the compatibility of your game.
 
-By the way, Linux is a family of operating systems - the one we are going to
-use specifically is Ubuntu (20.04 LTS as I am writing this guide). First off,
-let's take a look at the entire setup
+# Installing WSL 2
+Microsoft has a detailed [guide for setting up WSL 2](https://learn.microsoft.com/en-us/windows/wsl/setup/environment), so you should refer to it if you encounter problems.
 
+Open **Command Prompt** and enter the `wsl --install` command.
 
-libTAS can't run natively on Windows. Thus, we use WSL 2 to create an
-environment that lets us execute Linux-based code. Effectively, this will give
-us a terminal in which we can do a lot of things given we know the commands.
-For many Windows users this is usually an uncomfortable experience - they'd
-rather have a nice graphical user interface (GUI) with lots of things to click on.
-As it happens, libTAS does come with a GUI - and currently, here's the problem: 
-We only have the terminal and no way to display something fancy as a GUI.
-So we need the "X Window System" to bridge the gap. In our case, we will use vcxsrv.
-Once our X-Server has been set up, we can open libTAS and then (hopefully) start TASing!
+![image](https://i.imgur.com/byoDYFD.png) ![image](https://i.imgur.com/xDyQoN2.png)
 
-Summed up, we have a Windows 10 running WSL 2 running libTAS through an X-Server.
-A bit convoluted, but more efficient than using a VM! And once everything is
-installed and set up, it's only a few clicks and you are ready to TAS.
+This does the following:
+* Enables the optional WSL and Virtual Machine Platform components
+* Downloads and installs the latest Linux kernel
+* Sets WSL 2 as the default
+* Downloads and installs the **Ubuntu** distribution of Linux
 
-Things you will need to download:
+Now, **restart** your computer.
 
-* [Ubuntu](https://www.microsoft.com/store/apps/9n6svws3rx71)
-* [vcxsrv](https://sourceforge.net/projects/vcxsrv/)
-* [libTAS](https://github.com/clementgallet/libTAS/releases)
+After restarting, Ubuntu should open. If it doesn't, you can launch it from the Start Menu. You will be prompted to create a username and password. This is unrelated to your existing Windows username/password. Note that while entering the password, the characters will not appear on the screen.
 
-And of course, you will need a game that runs on Linux. Otherwise you need to
-use wine, which, aside from adding yet another layer in our approach, will
-potentially not work.
+![image](https://i.imgur.com/XJ3IZr3.png)
 
-# Step 1: Installing & Setting Up WSL 2 
+Once the installation is complete, you will see this terminal prompt:
 
-I think [Microsoft's guide](https://docs.microsoft.com/en-us/windows/wsl/install-win10#manual-installation-steps) did a decent job explaining the installation process so I just refer to that here. If however you do happen to run into trouble, feel free to join the [libTAS discord server](https://discord.gg/3MBVAzU) and ask for help. Optionally, you can also find tutorials on YouTube.
+![image](https://i.imgur.com/SeHEKI7.png)
 
-You can check that you have the version 2 installed by running the following command in a Windows terminal: `wsl --list --verbose`. If it prints `1` at `VERSION`, then you need to upgrade to version 2.
+You are now in WSL 2.
 
-Once WSL 2 has been installed, grab Ubuntu from the store (this is all mentioned in Microsoft's guide but I just
-want to point it out here again). You should have a new Windows-App called Ubuntu 20.04 LTS.
+# Installing libTAS
+For simplicity, I have combined all subsequent steps into a single command to enter into the terminal. You can paste it with right click or Ctrl+V:
 
-Start it and a terminal will open. For the first time only you'll be asked to
-create a [user account](https://docs.microsoft.com/en-us/windows/wsl/user-support) which will be your default user.
+`curl https://raw.githubusercontent.com/Randomno/libTASinstall/main/libTASinstall.sh | sh`
 
-If you like to adjust your terminal, right-click on the top bar to open a menu and select properties at the bottom.
-Here you can adjust the copy&paste behaviour, font size, colours and other things. Generally, if you want to paste something, you can just right-click anywhere on the console.
+This downloads and runs the script which does the following:
+* Updates and upgrades packages
+* Downloads the latest version of libTAS from GitHub
+* Installs libTAS
+* Disables Wayland (this is a window manager incompatible with libTAS)
+* Disables Wayland on future launches of Ubuntu
 
-Now it's time to check for updates. Paste this into your terminal and hit enter:
+Make sure to enter your password when prompted.
 
-    sudo apt update
-    sudo apt upgrade
+Assuming all has gone well, simply enter the `libTAS` command to run the program:
 
-`sudo` stands for "super user do" which is basically admin powers. `sudo apt update`
-checks for updates and `sudo apt upgrade` is for actually updating. Confirm and
-wait for the updates to finish.
+![image](https://i.imgur.com/GVUkPSl.png)
 
-# Step 2: Installing libTAS
+![image](https://i.imgur.com/ZQ9pIa6.png)
 
-Next we are going to install libTAS. You can access files outside of Ubuntu
-by mounting your harddrive which is very convenient. This means you can just
-download libTAS on your Windows environment, then access it in the terminal.
-It is recommended that you place the .deb file somewhere convenient because
-you will have to fill in its path in the terminal using the cd command.
+# Using Linux and libTAS
+Becoming proficient with Linux can take time and this tutorial could not cover every possibility. It has a large array of commands to perform tasks through the terminal, but this is not very beginner-friendly; most things can instead be done with a GUI (graphical user interface).
 
-For example:
+To access your files, you can use Windows Explorer.
 
-    cd /mnt/d/libTAS
-    
-would change the current directory to D:\libTAS on Windows (do pay attention to
-the different pathing style).
+![image](https://i.imgur.com/4HLEZsO.png)
 
-Adjust the command to your path where you've put the .deb file and change your
-current directory to it, then run
+Most of your files will be in `/home/<username>` (whatever your username is). This directory is often shortened to `~` (for example `~/libTAS/` is the same as `/home/<username>/libTAS/`).
 
-    sudo apt install ./libtas_*_amd64.deb
+Alternatively, you can install a file explorer inside WSL, such as Nautilus, with `sudo apt install nautilus`. Run it with `nautilus`. Your Windows files can be found in `/mnt/`. `c` is the `C:` drive.
 
-The `*` makes it so that it uses our .deb file regardless of its version, e.g.
-it may be named `libtas_1.4.0_d086878_amd64.deb` and it will still work. Very convenient.
+![image](https://i.imgur.com/wzp50Cn.png)
 
-Potentially you will see error messages saying that there are unmet dependencies.
-The easiest way to fix that is to simply run
+Depending on your game, you can download the Linux version outside of WSL, and copy it over with either of these methods. If you want an example game to test, libTAS includes a `simplestgame` for this purpose. I have compiled the game for download [here](https://github.com/Randomno/simplestgame/releases/tag/1.0). You can download this and copy it to your `/home/<username>/` directory.
 
-    sudo apt --fix-broken install
+Note that executable files on Linux often have no file extension (i.e. there is no `.exe` like Windows). Alternatively they can have a `.x86` or `.x86_64` extension. The file still needs permission to run as an executable. This can be done with `chmod +x <filename>`, or through Nautilus by right clicking, going to Properties>Permissions, and checking Allow executing file as program. You will now be able to run the program by double clicking it.
 
-and it will install a lot of stuff. Hopefully that should be it and libTAS has been installed.
+![image](https://i.imgur.com/4fT1jD8.png)
 
-However, as mentioned at the beginning, we now need vcxsrv to be able to display
-it (or anything that uses a GUI for that matter).
+# Shortcut
 
-# Step 3: Installing & Setting Up VcXsrv
+You may notice a new shortcut has been created after installing libTAS:
 
-Install VcXsrv on Windows, then run `xlaunch.exe` located in the installation folder. 
-Your firewall will most likely want to block it. Permit access both on private
-and public networks. You may want to go into your firewall's settings and double check.
+![image](https://i.imgur.com/OAjR5C5.png)
 
-Now we are going to configure the X-Server. On the first screen, change "Display number" to 0. 
-"Multiple windows" is picked by default and useful for our needs because you
-will have multiple windows (libTAS, your game, RAM search/watch, Input Editor etc).
+This shortcut works, but is not the preferred way of launching libTAS, as the program often logs information and errors to the terminal. You should instead launch Ubuntu and then enter `libTAS`. Alternatively, you can create a new shortcut with the location `C:\Windows\System32\wsl.exe -e bash -lic "libTAS"` (assuming WSL is on the C drive).
 
-On the second screen, select "Start no client". We start our programs in due time.
-
-On the third screen, uncheck "Native opengl" and check "Disable access control".
-
-On the fourth screen you can save these settings so you can launch them similarly
-to a normal shortcut which is very convenient for later.
-
-Confirm and start your X-Server. 
-
-There will be an icon in your taskbar's corner and a process called 
-"VcXsrv windows xserver" in your Task-Manager shall you need to kill it.
-
-# Step 4: The Final Stretch & Displaying libTAS
-
-Now to connect WSL with our server, paste
-
-    export DISPLAY=$(awk '/nameserver / {print $2; exit}' /etc/resolv.conf 2>/dev/null):0
-
-into your console and hit enter. Technically we should be done now. If you run
-
-    libTAS
-    
-a window should pop and you should see libTAS in all its glory!
-
-However the export thing is necessary every time you start Ubuntu. There is a
-convenient way to have it run automatically by typing said export line into a file called `.bashrc`.
-
-Because this tutorial was made for Windows users, in our next step we will install
-a nice file explorer with a graphical interface as well as a text editor. Run
-
-    apt install nautilus
-
-in your console to install said explorer. For the text editor I went with `gedit`.
-You can install it by running
-
-    apt install gedit
-
-Once it's finished, simply run
-
-    nautilus
-
-and a new window should pop up, given that you've established a connection first.
-
-You should now see a file explorer. Navigate to `Home` and look for a file
-called `.bashrc` (yes, it starts with a dot). Right-click on it and open it with
-gedit (our new text editor), then scroll to the file's end (don't touch anything
-on your way please) and add
-
-    export DISPLAY=$(awk '/nameserver / {print $2; exit}' /etc/resolv.conf 2>/dev/null):0
-
-as a new line. Save and close your terminal.
-
-Now if you've done everything correctly, the next time you open a terminal and
-run libTAS, it should pop up right away without having to run the export
-command first (make sure that your X-Server is running of course).
-
-# Step 5: Installing Steam (optional)
-
-If your game has a Linux version and exists on Steam, then the easiest way to
-get the files of the game you want to TAS would be to simply install Steam and download it.
-There are some ways to directly access Steam repositories but I am not familiar with that. So run
-
-    sudo dpkg --add-architecture i386 # allows WSL to access 32 bit repos
-    sudo add-apt-repository multiverse
-    sudo apt update
-    sudo apt install steam
-
-and it should install Steam. Download your game, then launch it through libTAS.
