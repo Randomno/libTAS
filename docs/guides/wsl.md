@@ -45,8 +45,7 @@ This downloads and runs the script which does the following:
 * Updates and upgrades packages
 * Downloads the latest version of libTAS from GitHub
 * Installs libTAS
-* Disables Wayland (this is a window manager incompatible with libTAS)
-* Disables Wayland on future launches of Ubuntu
+* Disables Wayland (this is a protocol incompatible with libTAS)
 
 Make sure to enter your password when prompted.
 
