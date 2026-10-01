@@ -20,6 +20,9 @@
 * aarch64: implement TLS save/restore
 * aarch64: disable AVX2 signature search
 * Add input events for SDL3
+* Propagate xlib events to parent when not interested
+* Add SDL3 SDL_Un/LockAudioStream hooks
+* Implement XSetInputFocus()
 
 ### Changed
 
@@ -32,7 +35,8 @@
 * Buffer writes to savestate page flag file
 * Disable asynchronous processing in FMOD Studio
 * Xevent async options only wait for events pushed during the
-  last frame, not all events 
+  last frame, not all events
+* Use common top-window to detect when game window has focus
 
 ### Fixed
 
@@ -48,6 +52,8 @@
 * Remove RTLD_DEEPBIND flag in dlopen to fix symbol preloading
 * Fix audio encoding not providing samples when no mixing
 * Don't assume a 4K page size
+* Fix SDL_RenderSetLogicalSize being called with 0s
+* Set the mode for Xlib focus events (#156)
 
 ## [1.4.8] - 2026-05-14
 ### Added

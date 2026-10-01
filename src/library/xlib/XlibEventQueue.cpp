@@ -26,7 +26,7 @@
 
 namespace libtas {
 
-XlibEventQueue::XlibEventQueue(Display* d) : display(d), sync_count(0), grab_window(0) {}
+XlibEventQueue::XlibEventQueue(Display* d) : display(d), sync_count(0), grab_window(0), grab_event_mask(0), grab_owner_events(false), focus_window(0) {}
 
 void XlibEventQueue::setMask(Window w, long event_mask)
 {
@@ -60,6 +60,7 @@ void XlibEventQueue::setMask(Window w, long event_mask)
         XEvent ev;
         ev.type = FocusIn;
         ev.xfocus.window = w;
+        ev.xfocus.mode = grab_window ? NotifyWhileGrabbed : NotifyNormal;
 
         LOG(LL_DEBUG, LCF_EVENTS | LCF_MOUSE | LCF_KEYBOARD, "   Inserting a FocusIn event");
         insert(&ev);
@@ -71,6 +72,24 @@ void XlibEventQueue::setMask(Window w, long event_mask)
 int XlibEventQueue::insert(XEvent* event)
 {
     std::lock_guard<std::recursive_mutex> lock(mutex);
+
+    /* Redirect events to the currently focused keyboard window, mirroring
+     * XSetInputFocus semantics for the emulated event queue. */
+    if ((focus_window != 0) &&
+        ((event->type == KeyPress) || (event->type == KeyRelease) ||
+         (event->type == FocusIn) || (event->type == FocusOut) ||
+         (event->type == KeymapNotify))) {
+        if (event->type == FocusIn || event->type == FocusOut) {
+            event->xfocus.window = focus_window;
+        }
+        else if (event->type == KeyPress || event->type == KeyRelease) {
+            event->xkey.window = focus_window;
+        }
+        else {
+            event->xkey.window = focus_window;
+        }
+        event->xany.window = focus_window;
+    }
 
     /* Check if pointer event and pointer is grabbed */
     if ((grab_window != 0) &&
@@ -113,16 +132,24 @@ int XlibEventQueue::insert(XEvent* event)
      * so we are always returning those events */
 
     if (event->type != ConfigureNotify) {
-        auto mask = eventMasks.find(event->xany.window);
-        if (mask != eventMasks.end()) {
-            if (!isTypeOfMask(event->type, mask->second))
-            return 0;            
-        }
-        else {
+
+        LOG(LL_DEBUG, LCF_EVENTS, "Check mask of window %d", event->xany.window);
+        /* Find the window in the hierarchy that is interested in this event */
+        while (event->xany.window != 0) {
+            auto mask = eventMasks.find(event->xany.window);
+            if (mask != eventMasks.end() && isTypeOfMask(event->type, mask->second)) {
+                break;
+            }
             /* Check unmaskable events */
-            if (!isTypeOfMask(event->type, 0))
+            else if (isTypeOfMask(event->type, 0)) {
+                break;
+            }
+            event->xany.window = getParentWindow(event->xany.window);
+            LOG(LL_DEBUG, LCF_EVENTS, "Check parent window %d", event->xany.window);
+        }
+        if (!event->xany.window)
             return 0;
-        }        
+        LOG(LL_DEBUG, LCF_EVENTS, "Found interested window %d", event->xany.window);
     }
 
     /* Check the size of the queue */
@@ -241,6 +268,32 @@ void XlibEventQueue::ungrabPointer()
     grab_window = 0;
 }
 
+void XlibEventQueue::setInputFocus(Window window)
+{
+    focus_window = window;
+
+    long event_mask = eventMasks[window];
+    if (event_mask & FocusChangeMask) {
+        XEvent ev;
+        ev.type = FocusIn;
+        ev.xfocus.window = window;
+        ev.xfocus.mode = grab_window ? NotifyWhileGrabbed : NotifyNormal;
+
+        LOG(LL_DEBUG, LCF_EVENTS | LCF_MOUSE | LCF_KEYBOARD, "   Inserting a FocusIn event");
+        insert(&ev);
+    }
+}
+
+void XlibEventQueue::clearInputFocus()
+{
+    focus_window = 0;
+}
+
+Window XlibEventQueue::getInputFocus() const
+{
+    return focus_window;
+}
+
 bool XlibEventQueue::isTypeOfMask(int type, long event_mask)
 {
     switch (type) {
@@ -301,5 +354,18 @@ bool XlibEventQueue::isTypeOfMask(int type, long event_mask)
     return true;
 }
 
+Window XlibEventQueue::getParentWindow(Window w)
+{
+    Window parent_return = 0;
+    Window *children_return = nullptr;
+    unsigned int nchildren_return = 0;
+    Window root_window;
+    if (!XQueryTree(display, w, &root_window, &parent_return, &children_return, &nchildren_return)) {
+        return 0;
+    }
+    if (children_return) XFree(children_return);
 
+    return (parent_return != DefaultRootWindow(display)) ? parent_return : 0;
 }
+
+} // namespace libtas
