@@ -22,7 +22,7 @@
 
 namespace libtas {
 
-void __attribute__((constructor)) init(void);
+void __attribute__((constructor)) init(int argc, char** argv);
 void __attribute__((destructor)) term(void);
 
 }

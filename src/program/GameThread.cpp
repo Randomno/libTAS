@@ -131,6 +131,17 @@ void GameThread::set_env_variables(Context *context, int gameArch)
 
         /* We need to delay libtas hooking for wine process. */
         setenv("LIBTAS_DELAY_INIT", "1", 1);
+
+        /* Wine starts other processes (wineserver, wineboot, explorer...)
+         * that must not be hooked, so tell libtas which one is the game */
+        setenv("LIBTAS_WINE_GAME", context->gameexecutable.filename().c_str(), 1);
+
+        /* WoW64 wine starts 32-bit games in a 64-bit process, which then
+         * restarts itself into a new 32-bit process. Tell libtas to only hook
+         * the restarted process. */
+        int processArch = wineProcessArch(findWinePath(context, gameArch), gameArch);
+        if (((gameArch & BT_TYPEMASK) != BT_PE32P) && (processArch == BT_ELF64))
+            setenv("LIBTAS_WINE_RESTART", "1", 1);
     }
     else {
         /* Tell SDL >= 2.0.2 to let us override functions even if it is statically linked.

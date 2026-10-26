@@ -24,7 +24,9 @@
 #include "general/dlhook.h"
 
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
+#include <strings.h>
 #include <string>
 #include <vector>
 #include <utility>
@@ -81,6 +83,40 @@ bool get_layout(LibraryLayout& layout)
 uintptr_t ntdll_start = 0;
 uintptr_t ntdll_end = 0;
 
+}
+
+bool wine_should_init(int argc, char** argv)
+{
+    const char* game;
+    NATIVECALL(game = getenv("LIBTAS_WINE_GAME"));
+    if (!game)
+        return true;
+
+    /* Wine processes are started with the Windows executable as first
+     * argument, either as a unix or Windows path */
+    const char* exe = "";
+    if (argc > 1) {
+        exe = argv[1];
+        for (const char* c = argv[1]; *c; c++)
+            if ((*c == '/') || (*c == '\\'))
+                exe = c + 1;
+    }
+
+    if (strcasecmp(exe, game) != 0) {
+        LOG(LL_INFO, LCF_WINE, "Skipping libtas init in wine process %s", argc > 0 ? argv[0] : "");
+        /* Don't propagate our library to the children of this process */
+        unsetenv("LD_PRELOAD");
+        return false;
+    }
+
+    if (getenv("LIBTAS_WINE_RESTART")) {
+        LOG(LL_INFO, LCF_WINE, "Skipping libtas init in wine process that restarts the game");
+        /* Keep our library for the restarted game process */
+        unsetenv("LIBTAS_WINE_RESTART");
+        return false;
+    }
+
+    return true;
 }
 
 void register_wine_ntdll(const char* path)

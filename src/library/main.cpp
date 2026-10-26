@@ -39,6 +39,9 @@
 #include "../shared/sockethelpers.h"
 #include "../shared/messages.h"
 #include "../shared/SharedConfig.h"
+#ifdef __linux__
+#include "wine/winehook.h"
+#endif
 
 #include <unistd.h> // getpid()
 #include <vector>
@@ -49,7 +52,7 @@ extern char**environ;
 
 namespace libtas {
 
-void __attribute__((constructor)) init(void)
+void __attribute__((constructor)) init(int argc, char** argv)
 {
     /* If LIBTAS_DELAY_INIT env variable is > 0, skip initialization and
      * decrease env variable value */
@@ -66,6 +69,13 @@ void __attribute__((constructor)) init(void)
 
         return;
     }
+
+#ifdef __linux__
+    if (!wine_should_init(argc, argv)) {
+        GlobalState::setNative(true);
+        return;
+    }
+#endif
 
     /* Hacking `environ` to disable LD_PRELOAD for future processes */
     /* Taken from <https://stackoverflow.com/a/3275799> */
