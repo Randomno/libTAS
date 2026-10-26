@@ -19,42 +19,152 @@
 
 #include "winehook.h"
 
-#include "hookpatch.h"
 #include "logging.h"
+#include "GlobalState.h"
+#include "general/dlhook.h"
+
+#include <cstdint>
+#include <cstring>
+#include <string>
+#include <vector>
+#include <utility>
+#include <dlfcn.h>
+#include <link.h>
+#include <sys/mman.h>
+#include <unistd.h>
 
 namespace libtas {
-#if defined(__i386__) || defined(__x86_64__)
 
-struct winstring {
-    unsigned short Length;
-    unsigned short MaximumLength;
-    char *Buffer;
+namespace {
+
+/* Memory layout of a loaded library */
+struct LibraryLayout {
+    const char* name;
+    uintptr_t start = UINTPTR_MAX;
+    uintptr_t end = 0;
+    std::vector<std::pair<uintptr_t, uintptr_t>> writable_segments;
+    uintptr_t relro_start = 0;
+    uintptr_t relro_end = 0;
 };
 
-namespace orig {
-
-static long __stdcall __attribute__((noinline)) LdrGetProcedureAddress(void *module, const winstring *name, unsigned long ord, void **address)
+int layout_callback(struct dl_phdr_info *info, size_t, void *data)
 {
-    HOOK_PLACEHOLDER_RETURN_ZERO
+    LibraryLayout* layout = static_cast<LibraryLayout*>(data);
+    if (!info->dlpi_name || !strstr(info->dlpi_name, layout->name))
+        return 0;
+
+    for (int i = 0; i < info->dlpi_phnum; i++) {
+        const ElfW(Phdr)& phdr = info->dlpi_phdr[i];
+        uintptr_t seg_start = info->dlpi_addr + phdr.p_vaddr;
+        uintptr_t seg_end = seg_start + phdr.p_memsz;
+
+        if (phdr.p_type == PT_LOAD) {
+            if (seg_start < layout->start) layout->start = seg_start;
+            if (seg_end > layout->end) layout->end = seg_end;
+            if (phdr.p_flags & PF_W)
+                layout->writable_segments.emplace_back(seg_start, seg_end);
+        }
+        else if (phdr.p_type == PT_GNU_RELRO) {
+            layout->relro_start = seg_start;
+            layout->relro_end = seg_end;
+        }
+    }
+    return 1;
 }
 
-}
-
-long __stdcall LdrGetProcedureAddress(void *module, const winstring *name,
-                                            unsigned long ord, void **address)
+bool get_layout(LibraryLayout& layout)
 {
-    LOGTRACE(LCF_HOOK | LCF_WINE, "%s called with function %s or ordinal %lu", __func__, name?name->Buffer:"<unnamed>", ord);
-    return orig::LdrGetProcedureAddress(module, name, ord, address);
+    NATIVECALL(dl_iterate_phdr(layout_callback, &layout));
+    return layout.end != 0;
 }
 
-void hook_ntdll()
-{
-    HOOK_PATCH_ORIG(LdrGetProcedureAddress, "ntdll.dll.so");
+uintptr_t ntdll_start = 0;
+uintptr_t ntdll_end = 0;
+
 }
 
-#else
-void hook_ntdll()
+void register_wine_ntdll(const char* path)
 {
+    LibraryLayout layout;
+    layout.name = path;
+    if (!get_layout(layout)) {
+        LOG(LL_ERROR, LCF_WINE, "Could not find the memory layout of %s", path);
+        return;
+    }
+    ntdll_start = layout.start;
+    ntdll_end = layout.end;
 }
-#endif
+
+bool isWineNtdllAddress(const void* addr)
+{
+    uintptr_t a = reinterpret_cast<uintptr_t>(addr);
+    return (a >= ntdll_start) && (a < ntdll_end);
+}
+
+void hook_wine_syscall(const char* library, const char* name, void** orig_function, void* my_function)
+{
+    std::string libpath = find_lib(library);
+    if (libpath.empty()) {
+        LOG(LL_ERROR, LCF_WINE | LCF_HOOK, "Could not find %s path", library);
+        return;
+    }
+
+    void* handle;
+    NATIVECALL(handle = dlopen(libpath.c_str(), RTLD_LAZY | RTLD_NOLOAD));
+    if (!handle) {
+        LOG(LL_ERROR, LCF_WINE | LCF_HOOK, "Could not load %s: %s", library, dlerror());
+        return;
+    }
+
+    void* function;
+    NATIVECALL(function = dlsym(handle, name));
+    if (!function) {
+        LOG(LL_ERROR, LCF_WINE | LCF_HOOK, "Could not find symbol %s in %s", name, library);
+        return;
+    }
+
+    LibraryLayout layout;
+    layout.name = libpath.c_str();
+    if (!get_layout(layout)) {
+        LOG(LL_ERROR, LCF_WINE | LCF_HOOK, "Could not find the memory layout of %s", library);
+        return;
+    }
+
+    /* The syscall table is an array of function pointers in a data segment,
+     * so look for the function address there. */
+    std::vector<void**> entries;
+    for (const auto& segment : layout.writable_segments) {
+        uintptr_t first = (segment.first + sizeof(void*) - 1) & ~(sizeof(void*) - 1);
+        for (uintptr_t a = first; a + sizeof(void*) <= segment.second; a += sizeof(void*)) {
+            void** entry = reinterpret_cast<void**>(a);
+            if (*entry == function)
+                entries.push_back(entry);
+        }
+    }
+
+    if (entries.size() != 1) {
+        LOG(LL_ERROR, LCF_WINE | LCF_HOOK, "Found %zu syscall table entries for %s, expected one", entries.size(), name);
+        return;
+    }
+
+    void** entry = entries[0];
+    LOG(LL_DEBUG, LCF_WINE | LCF_HOOK, "Replacing syscall table entry of %s at %p", name, entry);
+
+    uintptr_t page_size = sysconf(_SC_PAGESIZE);
+    void* page = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(entry) & ~(page_size - 1));
+    bool relro = (reinterpret_cast<uintptr_t>(entry) >= layout.relro_start) &&
+                 (reinterpret_cast<uintptr_t>(entry) < layout.relro_end);
+
+    if (relro && mprotect(page, page_size, PROT_READ | PROT_WRITE) != 0) {
+        LOG(LL_ERROR, LCF_WINE | LCF_HOOK, "Could not make syscall table writable");
+        return;
+    }
+
+    *orig_function = function;
+    *entry = my_function;
+
+    if (relro)
+        mprotect(page, page_size, PROT_READ);
+}
+
 }

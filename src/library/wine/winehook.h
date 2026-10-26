@@ -20,27 +20,20 @@
 #ifndef LIBTAS_WINEHOOK_H_INCLUDED
 #define LIBTAS_WINEHOOK_H_INCLUDED
 
-#ifndef __stdcall
-# ifdef __i386__
-#  ifdef __GNUC__
-#   if (__GNUC__ > 4) || ((__GNUC__ == 4) && (__GNUC_MINOR__ >= 2))
-#    define __stdcall __attribute__((__stdcall__)) __attribute__((__force_align_arg_pointer__))
-#   else
-#    define __stdcall __attribute__((__stdcall__))
-#   endif
-#  endif
-# elif defined(__x86_64__) && defined (__GNUC__)
-#  if (__GNUC__ > 5) || ((__GNUC__ == 5) && (__GNUC_MINOR__ >= 3))
-#   define __stdcall __attribute__((ms_abi)) __attribute__((__force_align_arg_pointer__))
-#  else
-#   define __stdcall __attribute__((ms_abi))
-#  endif
-# endif  /* __i386__ */
-#endif /* __stdcall */
-
 namespace libtas {
 
-void hook_ntdll();
+/* Replace the entry of a wine syscall in the syscall table of a wine unix
+ * library. Contrary to patching the function itself, only the calls coming
+ * from the Windows side are redirected, while wine internal calls keep using
+ * the original function. */
+void hook_wine_syscall(const char* library, const char* name, void** orig_function, void* my_function);
+
+/* Store the address range of wine unix ntdll library */
+void register_wine_ntdll(const char* path);
+
+/* Returns if the address belongs to wine unix ntdll library. Wine computes
+ * timeouts from the real time, so its own time calls must not be faked. */
+bool isWineNtdllAddress(const void* addr);
 
 }
 

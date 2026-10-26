@@ -30,6 +30,9 @@
 #include "global.h" // Global::shared_config
 #include "BusyLoopDetection.h"
 #include "PerfTimer.h"
+#ifdef __linux__
+#include "wine/ntdll.h" // update_wine_shared_data()
+#endif
 
 #include <sched.h> // sched_yield()
 #include <stdint.h>
@@ -187,6 +190,10 @@ void DeterministicTimer::addDelay(struct timespec delayTicks)
         ticks += delayTicks;
     }
 
+#ifdef __linux__
+    update_wine_shared_data();
+#endif
+
     if(!Global::shared_config.fastforward)
     {
         /* Sleep, because the caller would have yielded at least a little */
@@ -326,6 +333,10 @@ void DeterministicTimer::exitFrameBoundary()
             lastEnterTime = desiredTime;
         }
     }
+
+#ifdef __linux__
+    update_wine_shared_data();
+#endif
 
     insideFrameBoundary = false;
     frame_mutex.unlock();

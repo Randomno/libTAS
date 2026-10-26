@@ -27,6 +27,7 @@
 #include "hook.h"
 #include "global.h"
 #include "checkpoint/ThreadManager.h" // isMainThread()
+#include "wine/winehook.h"
 #include "../shared/SharedConfig.h"
 
 #include <execinfo.h>
@@ -46,6 +47,11 @@ namespace libtas {
 
 /* Override */ int gettimeofday(struct timeval* tv, struct timezone* tz) __THROW
 {
+    /* Wine computes timeouts from the real time */
+    if (isWineNtdllAddress(__builtin_return_address(0))) {
+        RETURN_NATIVE(gettimeofday, (tv, tz), nullptr);
+    }
+
     LOGTRACE_SIMPLE(LCF_TIMEGET);
     struct timespec ts = DeterministicTimer::get().getTicks(SharedConfig::TIMETYPE_GETTIMEOFDAY);
     LOG(LL_DEBUG, LCF_TIMEGET, "  returning %d.%06d", ts.tv_sec, ts.tv_nsec/1000);
@@ -68,6 +74,11 @@ namespace libtas {
 /* Override */ int clock_gettime (clockid_t clock_id, struct timespec *tp) __THROW
 {
     RETURN_IF_NATIVE(clock_gettime, (clock_id, tp), nullptr);
+
+    /* Wine computes timeouts from the real time */
+    if (isWineNtdllAddress(__builtin_return_address(0))) {
+        RETURN_NATIVE(clock_gettime, (clock_id, tp), nullptr);
+    }
 
     LOGTRACE_SIMPLE(LCF_TIMEGET);
 

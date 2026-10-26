@@ -27,7 +27,7 @@
 #include "wine/winehook.h"
 #include "wine/wined3d.h"
 #include "wine/win32u.h"
-#include "wine/kernel32.h"
+#include "wine/ntdll.h"
 #endif
 #include "backtrace.h"
 #include "GameHacks.h"
@@ -268,9 +268,9 @@ __attribute__((noipa)) void *dlopen(const char *file, int mode) __THROW {
         hook_win32u();
     }
 
-    if (result && file && std::strstr(file, "kernel32.dll.so") != nullptr) {
-        /* Hook wine kernel32 functions */
-        hook_kernel32();
+    if (result && file && std::strstr(file, "/ntdll.so") != nullptr) {
+        /* Hook unix side of wine ntdll syscalls */
+        hook_ntdll(file);
     }
 #endif
 
@@ -435,13 +435,6 @@ void *dlsym(void *handle, const char *name) __THROW {
     if (orig_addr) {
         vk_store_proc(name, orig_addr);
     }
-
-#ifdef __linux__
-    if (0 == strcmp(name, "__wine_process_init")) {
-        /* Hook wine LdrGetProcedureAddress function */
-        hook_ntdll();
-    }
-#endif
 
     recurs_count--;
     return addr;

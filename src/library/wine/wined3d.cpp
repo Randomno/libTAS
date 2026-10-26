@@ -25,6 +25,24 @@
 #include "checkpoint/ThreadSync.h"
 #include "global.h"
 
+#ifndef __stdcall
+# ifdef __i386__
+#  ifdef __GNUC__
+#   if (__GNUC__ > 4) || ((__GNUC__ == 4) && (__GNUC_MINOR__ >= 2))
+#    define __stdcall __attribute__((__stdcall__)) __attribute__((__force_align_arg_pointer__))
+#   else
+#    define __stdcall __attribute__((__stdcall__))
+#   endif
+#  endif
+# elif defined(__x86_64__) && defined (__GNUC__)
+#  if (__GNUC__ > 5) || ((__GNUC__ == 5) && (__GNUC_MINOR__ >= 3))
+#   define __stdcall __attribute__((ms_abi)) __attribute__((__force_align_arg_pointer__))
+#  else
+#   define __stdcall __attribute__((ms_abi))
+#  endif
+# endif  /* __i386__ */
+#endif /* __stdcall */
+
 namespace libtas {
 #if defined(__i386__) || defined(__x86_64__)
 

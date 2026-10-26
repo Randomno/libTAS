@@ -23,6 +23,7 @@
  * calling convention, even on i386. */
 
 #include "win32u.h"
+#include "ntdll.h"
 
 #include "hookpatch.h"
 #include "logging.h"
@@ -146,6 +147,10 @@ void hook_win32u()
     if (hooked)
         return;
     hooked = true;
+
+    /* win32u is loaded after wine mapped the shared user data page, and
+     * before the game code runs */
+    takeover_wine_shared_data();
 
     HOOK_PATCH_ORIG(NtUserGetAsyncKeyState, "win32u.so");
     HOOK_PATCH_ORIG(NtUserGetKeyState, "win32u.so");

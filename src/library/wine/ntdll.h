@@ -17,12 +17,20 @@
     along with libTAS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef LIBTAS_WINEKERNEL32_H_INCLUDED
-#define LIBTAS_WINEKERNEL32_H_INCLUDED
+#ifndef LIBTAS_WINENTDLL_H_INCLUDED
+#define LIBTAS_WINENTDLL_H_INCLUDED
 
 namespace libtas {
 
-void hook_kernel32();
+void hook_ntdll(const char* path);
+
+/* Replace the wine shared user data page, which contains time values that
+ * Windows functions read directly, such as GetTickCount(). Does nothing if
+ * the page is not mapped yet. */
+void takeover_wine_shared_data();
+
+/* Write the current deterministic time into our shared user data page */
+void update_wine_shared_data();
 
 }
 
