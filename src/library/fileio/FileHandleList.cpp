@@ -175,35 +175,33 @@ void updateAllFiles()
         }
         else {
             if (0 == strncmp(buf, "pipe:", 5)) {
-                /* Check if the pipe was already added from the other file descriptor */
+                /* Find which end of the pipe are we processing */
+                int fd_flags = fcntl(fd, F_GETFL);
+                bool is_write_end = (fd_flags != -1) ?
+                    ((fd_flags & O_ACCMODE) == O_WRONLY) :
+                    (0 == faccessat(dir_fd, dp->d_name, W_OK, AT_SYMLINK_NOFOLLOW));
+                int end = is_write_end ? 1 : 0;
+
+                /* Check if the pipe was already added from the other end */
                 bool pipe_already_pushed = false;
 
                 for (FileHandle &fh : filehandles) {
-                    if ((fh.type == FileHandle::FILE_PIPE) && (0 == strcmp(fh.fileName, buf))) {
-                        /* Add the second fd to the pipe */
-                        if (fh.fds[0] == -1)
-                            fh.fds[0] = fd;
-                        else if (fh.fds[1] == -1)
-                            fh.fds[1] = fd;
-                        else
-                            LOG(LL_ERROR, LCF_FILEIO, "Pipe %s with fd %d already met a complete pipe (fd=%d,%d)", buf, fd, fh.fds[0], fh.fds[1]);
-
+                    if ((fh.type == FileHandle::FILE_PIPE) && (0 == strcmp(fh.fileName, buf)) && (fh.fds[end] == -1)) {
+                        fh.fds[end] = fd;
                         pipe_already_pushed = true;
                         break;
                     }
                 }
                 
+                /* Otherwise, append the pipe with this fd, and maybe fill the
+                 * other fd later. The same end of a pipe may be opened with
+                 * several file descriptors (e.g. stdout and stderr), so each
+                 * duplicate gets its own entry, so that it is not closed
+                 * when loading a state. */
                 if (!pipe_already_pushed) {
-                    /* Find which end of the pipe are we processing */
-                    bool is_write_end = (0 == faccessat(dir_fd, dp->d_name, W_OK, AT_SYMLINK_NOFOLLOW));
-                    
-                    /* We append the pipe with this fd, and later will fill the other fd. */
                     int fds[2] = {-1, -1};
+                    fds[end] = fd;
                     filehandles.emplace_front(buf, fds);
-                    if (is_write_end)
-                        filehandles.front().fds[1] = fd;
-                    else
-                        filehandles.front().fds[0] = fd;
                 }
             }
             else if (0 == strncmp(buf, "socket:", 7))
@@ -250,7 +248,8 @@ void trackFile(FileHandle &fh)
         LOG(LL_DEBUG, LCF_FILEIO, "Save pipe content (fd=%d,%d)", fh.fds[0], fh.fds[1]);
 
         if (fh.fds[0] < 0 || fh.fds[1] < 0) {
-            LOG(LL_WARN, LCF_FILEIO, "Skip saving incomplete pipe (fd=%d,%d)", fh.fds[0], fh.fds[1]);
+            /* This is common, when the other end belongs to another process */
+            LOG(LL_DEBUG, LCF_FILEIO, "Skip saving incomplete pipe (fd=%d,%d)", fh.fds[0], fh.fds[1]);
             fh.size = -1;
             return;
         }
@@ -357,7 +356,7 @@ void recoverPipeContents()
         }
 
         if (fh.fds[0] < 0 || fh.fds[1] < 0) {
-            LOG(LL_WARN, LCF_FILEIO, "Skip restoring incomplete pipe (fd=%d,%d)", fh.fds[0], fh.fds[1]);
+            LOG(LL_DEBUG, LCF_FILEIO, "Skip restoring incomplete pipe (fd=%d,%d)", fh.fds[0], fh.fds[1]);
             std::free(fh.pipeContents);
             fh.pipeContents = nullptr;
             fh.size = -1;
