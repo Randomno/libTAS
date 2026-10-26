@@ -143,6 +143,18 @@ DEFINE_ORIG_POINTER(XQueryPointer)
 
     LOGTRACE(LCF_MOUSE, "%s called with dest_w %d and dest_x %d and dest_y %d", __func__, dest_w, dest_x, dest_y);
 
+    /* Pointer coordinates are relative to the game window, so convert warps
+     * relative to the root window using the window position that we report
+     * (see XTranslateCoordinates()) */
+    int game_x = dest_x;
+    int game_y = dest_y;
+    if ((dest_w != None) && (dest_w == DefaultRootWindow(d)) && XlibGameWindow::get()) {
+        int win_x, win_y;
+        XlibGameWindow::getCoords(XlibGameWindow::get(), &win_x, &win_y);
+        game_x -= win_x;
+        game_y -= win_y;
+    }
+
     /* We have to generate an MotionNotify event. */
     if (XlibGameWindow::get()) {
         XEvent event;
@@ -155,8 +167,8 @@ DEFINE_ORIG_POINTER(XQueryPointer)
         }
         else {
             /* Absolute warp */
-            event.xmotion.x = dest_x;
-            event.xmotion.y = dest_y;
+            event.xmotion.x = game_x;
+            event.xmotion.y = game_y;
         }
         event.xmotion.x_root = event.xmotion.x;
         event.xmotion.y_root = event.xmotion.y;
@@ -177,8 +189,8 @@ DEFINE_ORIG_POINTER(XQueryPointer)
     }
     else {
         /* Absolute warp */
-        Inputs::game_ai.pointer.x = dest_x;
-        Inputs::game_ai.pointer.y = dest_y;
+        Inputs::game_ai.pointer.x = game_x;
+        Inputs::game_ai.pointer.y = game_y;
     }
 
     if (Global::shared_config.mouse_prevent_warp) {
@@ -196,8 +208,8 @@ DEFINE_ORIG_POINTER(XQueryPointer)
         }
         else {
             /* Absolute warp */
-            Inputs::old_ai.pointer.x = dest_x;
-            Inputs::old_ai.pointer.y = dest_y;
+            Inputs::old_ai.pointer.x = game_x;
+            Inputs::old_ai.pointer.y = game_y;
         }
     }
 

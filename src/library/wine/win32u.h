@@ -17,12 +17,12 @@
     along with libTAS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef LIBTAS_WINEUSER32_H_INCLUDED
-#define LIBTAS_WINEUSER32_H_INCLUDED
+#ifndef LIBTAS_WINEWIN32U_H_INCLUDED
+#define LIBTAS_WINEWIN32U_H_INCLUDED
 
 namespace libtas {
 
-void hook_user32();
+void hook_win32u();
 
 }
 

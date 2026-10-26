@@ -26,7 +26,7 @@
 #ifdef __unix__
 #include "wine/winehook.h"
 #include "wine/wined3d.h"
-#include "wine/user32.h"
+#include "wine/win32u.h"
 #include "wine/kernel32.h"
 #endif
 #include "backtrace.h"
@@ -263,9 +263,9 @@ __attribute__((noipa)) void *dlopen(const char *file, int mode) __THROW {
         hook_wined3d();
     }
 
-    if (result && file && std::strstr(file, "user32.dll.so") != nullptr) {
-        /* Hook wine user32 functions */
-        hook_user32();
+    if (result && file && std::strstr(file, "win32u.so") != nullptr) {
+        /* Hook unix side of wine win32u syscalls (wine >= 7) */
+        hook_win32u();
     }
 
     if (result && file && std::strstr(file, "kernel32.dll.so") != nullptr) {
