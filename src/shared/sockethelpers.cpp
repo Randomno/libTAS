@@ -28,6 +28,7 @@
 #endif
 
 #include <sys/socket.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <cstdlib>
@@ -143,6 +144,10 @@ bool initSocketGame(void)
         LOG(LL_ERROR, LCF_SOCKET, "Couldn't accept client connection %s", strerror(errno));
         exit(-1);
     }
+
+    /* Don't share the socket with processes started by the game, such as
+     * wineserver, which would keep the connection open after the game exits */
+    fcntl(socket_fd, F_SETFD, FD_CLOEXEC);
 
     /* Don't generate SIGPIPE */
 #if defined(__APPLE__) && defined(__MACH__)

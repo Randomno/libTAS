@@ -822,6 +822,11 @@ void MainWindow::updateStatus(int status)
             stopButton->setEnabled(false);
 
             updateMovieParams();
+
+            /* In non-interactive mode, quit when the game has exited */
+            if (!context->interactive)
+                QApplication::quit();
+
             break;
 
         case Context::STARTING:
