@@ -826,6 +826,7 @@ static void readAnArea(SaveStateLoading &saved_state, int spmfd, PagemapCache &p
         bool soft_dirty = page & (0x1ull << 55);
         bool page_guard_region = page & (0x1ull << 58);
         bool page_file = page & (0x1ull << 61);
+        bool page_swapped = page & (0x1ull << 62);
         bool page_present = page & (0x1ull << 63);
 
         if (flag == Area::GUARD_PAGE) {
@@ -839,6 +840,16 @@ static void readAnArea(SaveStateLoading &saved_state, int spmfd, PagemapCache &p
         } else if (page_guard_region) {
             LOG(LL_DEBUG, LCF_CHECKPOINT, "    Page was not a guard page in checkpoint but now is %p", curAddr);
             MYASSERT(madvise(curAddr, page_size, MADV_GUARD_REMOVE) == 0);
+        }
+
+        /* A private anonymous page that is neither present nor swapped is
+         * zero, so there is nothing to do if it must be zero. This avoids
+         * touching each page of large reserved areas, such as wine's. */
+        if (((flag == Area::ZERO_PAGE) || (flag == Area::NO_PAGE)) &&
+            (saved_area.flags & Area::AREA_PRIV) && (saved_area.flags & Area::AREA_ANON) &&
+            !page_present && !page_swapped) {
+            pagecount_skip++;
+            continue;
         }
 
         /* Page is not a lightweight guard page, we can turn on read protection */
@@ -1311,11 +1322,28 @@ static size_t writeAnArea(SaveStateSaving &state, Area &area, int spmfd, Pagemap
         bool soft_dirty = page & (0x1ull << 55);
         bool page_guard_region = page & (0x1ull << 58);
         bool page_file = page & (0x1ull << 61);
+        bool page_swapped = page & (0x1ull << 62);
         bool page_present = page & (0x1ull << 63);
 
         if (page_guard_region) {
             state.savePageFlag(Area::GUARD_PAGE);
             LOG(LL_DEBUG, LCF_CHECKPOINT, "    Skip saving guard page at %p", curAddr);
+            continue;
+        }
+
+        /* A private anonymous page that is neither present nor swapped is
+         * zero, so we don't need to read it. This avoids touching each page
+         * of large reserved areas, such as wine's. */
+        if ((area.flags & Area::AREA_PRIV) && (area.flags & Area::AREA_ANON) &&
+            !page_present && !page_swapped) {
+            if (Global::shared_config.savestate_settings & SharedConfig::SS_PRESENT) {
+                state.savePageFlag(Area::NO_PAGE);
+                pagecount_unmapped++;
+            }
+            else {
+                state.savePageFlag(Area::ZERO_PAGE);
+                pagecount_zero_or_file++;
+            }
             continue;
         }
 
