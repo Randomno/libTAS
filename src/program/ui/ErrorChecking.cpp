@@ -135,7 +135,7 @@ bool ErrorChecking::checkArchType(Context* context)
     /* Checking that the game can be executed by the user, or try adding the flag.
      * This is not needed for wine games.
      * MacOS apps are directories, and thus executables */
-    if (gameArch != BT_PE32 && gameArch != BT_PE32P && gameArch != BT_NE && access(context->gamepath.c_str(), X_OK) != 0) {
+    if (!isWindowsBinary(gameArch) && access(context->gamepath.c_str(), X_OK) != 0) {
 
         std::filesystem::permissions(context->gamepath, std::filesystem::perms::owner_exec, std::filesystem::perm_options::add);
 
@@ -145,8 +145,23 @@ bool ErrorChecking::checkArchType(Context* context)
         }
     }
 
+    /* Check for wine presence in case of Windows executables, and get the
+     * arch of the process that wine will create */
+    int processArch = gameArch;
+    if (isWindowsBinary(gameArch)) {
+        std::filesystem::path winepath = findWinePath(context, gameArch);
+        if (winepath.empty()) {
+            if (context->config.use_proton && !context->config.proton_path.empty())
+                critical(QString("Trying to execute a Windows executable, but wine could not be found in Proton path %1").arg(context->config.proton_path.c_str()), context->interactive);
+            else
+                critical(QString("Trying to execute a Windows executable, but wine cannot be found"), context->interactive);
+            return false;
+        }
+        processArch = wineProcessArch(winepath, gameArch);
+    }
+
     /* Check for a possible libtas alternate file */
-    if (((gameArch == BT_ELF32) || (gameArch == BT_PE32)) && (libtasArch == BT_ELF64)) {
+    if ((processArch == BT_ELF32) && (libtasArch == BT_ELF64)) {
         if (context->libtas32path.empty()) {
             critical(QString("Trying to launch a 32-bit game with a 64-bit build of libTAS, but libTAS couldn't guess the path to libtas32.so. Use --libtas32-so-path (see --help)"), context->interactive);
             return false;
@@ -155,23 +170,6 @@ bool ErrorChecking::checkArchType(Context* context)
             return false;
         } else {
             libtasArch = extractBinaryType(context->libtas32path) & BT_TYPEMASK;
-        }
-    }
-
-    /* Check for wine presence in case of Windows executables */
-    if ((gameArch == BT_PE32) || (gameArch == BT_PE32P) || (gameArch == BT_NE)) {
-        std::string winename = "wine";
-        if (gameArch == BT_PE32P)
-            winename += "64";
-            
-
-        std::string cmd = "which ";
-        cmd += winename;
-        
-        std::string winepath = queryCmd(cmd);
-        if (winepath.empty()) {
-            critical(QString("Trying to execute a Windows executable, but %1 cannot be found").arg(winename.c_str()), context->interactive);
-            return false;
         }
     }
 
@@ -199,9 +197,9 @@ bool ErrorChecking::checkArchType(Context* context)
     }
 
     /* Check for arch mismatch */
-    if ((((gameArch == BT_ELF32) || (gameArch == BT_PE32)) && (libtasArch == BT_ELF64)) ||
-        (((gameArch == BT_ELF64) || (gameArch == BT_PE32P)) && (libtasArch == BT_ELF32))) {
-        critical(QString("libtas.so library was compiled for a %1-bit arch but %2 has a %3-bit arch").arg((libtasArch%2)?32:64).arg(context->gamepath.c_str()).arg((gameArch%2)?32:64), context->interactive);
+    if (((processArch == BT_ELF32) && (libtasArch == BT_ELF64)) ||
+        ((processArch == BT_ELF64) && (libtasArch == BT_ELF32))) {
+        critical(QString("libtas.so library was compiled for a %1-bit arch but %2 runs in a %3-bit process").arg((libtasArch == BT_ELF32)?32:64).arg(context->gamepath.c_str()).arg((processArch == BT_ELF32)?32:64), context->interactive);
         return false;
     }
     

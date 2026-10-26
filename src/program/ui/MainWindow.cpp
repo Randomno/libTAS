@@ -1269,7 +1269,7 @@ bool MainWindow::updateGamePathAvailability()
     launchButton->setEnabled(true);
 
     int gameArch = extractBinaryType(context->gamepath) & BT_TYPEMASK;
-    bool canAttachDebugger = (gameArch != BT_PE32) && (gameArch != BT_PE32P) && (gameArch != BT_NE);
+    bool canAttachDebugger = !isWindowsBinary(gameArch);
     launchGdbButton->setEnabled(canAttachDebugger);
     return true;
 }

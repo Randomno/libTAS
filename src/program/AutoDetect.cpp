@@ -33,8 +33,14 @@ int AutoDetect::arch(Context *context)
     int gameArch = extractBinaryType(context->gameexecutable);
     int libtasArch = extractBinaryType(context->libtaspath) & BT_TYPEMASK;
 
+    /* Windows games run inside a wine process, whose arch may differ
+     * from the game arch */
+    int processArch = gameArch & BT_TYPEMASK;
+    if (isWindowsBinary(gameArch))
+        processArch = wineProcessArch(findWinePath(context, gameArch), gameArch);
+
     /* Switch to libtas32.so if required */
-    if ((((gameArch&BT_TYPEMASK) == BT_ELF32) || ((gameArch&BT_TYPEMASK) == BT_PE32) || ((gameArch&BT_TYPEMASK) == BT_NE)) && (libtasArch == BT_ELF64)) {
+    if ((processArch == BT_ELF32) && (libtasArch == BT_ELF64)) {
         /* libtas32.so presence was already checked in ui/ErrorChecking.cpp */
         context->libtaspath = context->libtas32path;
     }

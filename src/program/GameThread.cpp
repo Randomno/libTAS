@@ -102,29 +102,30 @@ void GameThread::set_env_variables(Context *context, int gameArch)
     setenv("GLIBC_TUNABLES", "glibc.pthread.rseq=0", 1);
 
     /* Set wine-specific env variables */
-    if ((gameArch == BT_PE32) || (gameArch == BT_PE32P) || (gameArch == BT_NE)) {
+    if (isWindowsBinary(gameArch)) {
 
         /* Set specific env variables for Proton */
-        if (context->config.use_proton && !context->config.proton_path.empty()) {
-            std::filesystem::path winedllpath = context->config.proton_path;
-            winedllpath /= "dist/lib64/wine:";
-            winedllpath += context->config.proton_path;
-            winedllpath /= "dist/lib/wine";
+        std::filesystem::path distpath;
+        if (context->config.use_proton && !context->config.proton_path.empty())
+            distpath = protonDistPath(context->config.proton_path);
+
+        if (!distpath.empty()) {
+            std::string winedllpath = (distpath / "lib64" / "wine").string();
+            winedllpath += ":";
+            winedllpath += (distpath / "lib" / "wine").string();
             setenv("WINEDLLPATH", winedllpath.c_str(), 1);
 
             char* oldlibpath = getenv("LD_LIBRARY_PATH");
-            std::filesystem::path libpath = context->config.proton_path;
-            libpath /= "dist/lib64/:";
-            libpath += context->config.proton_path;
-            libpath /= "dist/lib/";
+            std::string libpath = (distpath / "lib64").string();
+            libpath += ":";
+            libpath += (distpath / "lib").string();
             if (oldlibpath) {
                 libpath += ":";
                 libpath += oldlibpath;
             }
             setenv("LD_LIBRARY_PATH", libpath.c_str(), 1);
 
-            std::filesystem::path wineprefix = context->config.proton_path;
-            wineprefix /= "dist/share/default_pfx/";
+            std::filesystem::path wineprefix = distpath / "share" / "default_pfx";
             setenv("WINEPREFIX", wineprefix.c_str(), 1);
         }
 
@@ -154,28 +155,10 @@ std::list<std::string> GameThread::build_arg_list(Context *context, int gameArch
     /* Build the argument list to be fed to execv */
     std::list<std::string> arg_list;
 
-    if ((gameArch == BT_PE32) || (gameArch == BT_PE32P) || (gameArch == BT_NE)) {
-        if (context->config.use_proton && !context->config.proton_path.empty()) {
-            /* Change the executable to proton */
-            std::string winepath = context->config.proton_path;
-            winepath += "/dist/bin/wine";
-            if (gameArch == BT_PE32P)
-                winepath += "64";
-            arg_list.push_back(winepath);
-        }
-        else {
-            /* Change the executable to wine */
-            std::string winename = "wine";
-            if (gameArch == BT_PE32P)
-                winename += "64";
-
-            /* wine[64] presence was already checked in ui/ErrorChecking.cpp */
-            std::string cmd = "which ";
-            cmd += winename;
-            
-            std::string winepath = queryCmd(cmd);
-            arg_list.push_back(winepath);
-        }
+    if (isWindowsBinary(gameArch)) {
+        /* Change the executable to wine. Its presence was already checked
+         * in ui/ErrorChecking.cpp */
+        arg_list.push_back(findWinePath(context, gameArch).string());
 
         /* Push the game executable as the first command-line argument */
         /* Wine can fail if not specifying a Windows path */
@@ -329,7 +312,7 @@ void GameThread::launch(Context *context)
     std::ostringstream sharg;
 
     /* Prepend LD_PRELOAD/DYLD_INSERT_LIBRARIES */
-    if (!(context->attach_gdb && (!(((gameArch&BT_TYPEMASK) == BT_PE32) || ((gameArch&BT_TYPEMASK) == BT_PE32P) || ((gameArch&BT_TYPEMASK) == BT_NE))))) {
+    if (!(context->attach_gdb && !isWindowsBinary(gameArch))) {
         /* Set the LD_PRELOAD/DYLD_INSERT_LIBRARIES environment variable to
          * inject our lib to the game */
 #ifdef __unix__

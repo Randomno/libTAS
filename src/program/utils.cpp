@@ -28,6 +28,7 @@
 #include <sstream>
 #include <map>
 #include <filesystem>
+#include <vector>
 
 void remove_savestates(Context* context)
 {
@@ -100,6 +101,65 @@ int extractBinaryType(std::filesystem::path path)
     }
 
     return BT_UNKNOWN | extra_flags;
+}
+
+bool isWindowsBinary(int binaryType)
+{
+    binaryType &= BT_TYPEMASK;
+    return (binaryType == BT_PE32) || (binaryType == BT_PE32P) || (binaryType == BT_NE);
+}
+
+std::filesystem::path protonDistPath(const std::filesystem::path& proton_path)
+{
+    /* Proton >= 5.13 uses `files`, older versions use `dist` */
+    for (const char* dir : {"files", "dist"}) {
+        std::filesystem::path distpath = proton_path / dir;
+        if (std::filesystem::exists(distpath / "bin" / "wine"))
+            return distpath;
+    }
+    return "";
+}
+
+std::filesystem::path findWinePath(const Context* context, int gameArch)
+{
+    /* WoW64 builds of wine (default since wine 10) only provide `wine`, which
+     * can run both 32-bit and 64-bit games, so fall back to it. */
+    std::vector<std::string> winenames;
+    if ((gameArch & BT_TYPEMASK) == BT_PE32P)
+        winenames.push_back("wine64");
+    winenames.push_back("wine");
+
+    if (context->config.use_proton && !context->config.proton_path.empty()) {
+        std::filesystem::path distpath = protonDistPath(context->config.proton_path);
+        if (distpath.empty())
+            return "";
+
+        for (const auto& winename : winenames) {
+            std::filesystem::path winepath = distpath / "bin" / winename;
+            if (std::filesystem::exists(winepath))
+                return winepath;
+        }
+        return "";
+    }
+
+    for (const auto& winename : winenames) {
+        std::string winepath = queryCmd("which " + winename);
+        if (!winepath.empty())
+            return winepath;
+    }
+    return "";
+}
+
+int wineProcessArch(const std::filesystem::path& winepath, int gameArch)
+{
+    /* The wine loader has the same arch as the process it creates. */
+    int wineArch = extractBinaryType(winepath) & BT_TYPEMASK;
+    if ((wineArch == BT_ELF32) || (wineArch == BT_ELF64))
+        return wineArch;
+
+    /* The loader may be a wrapper script (e.g. on Debian), so guess from the
+     * game arch. */
+    return ((gameArch & BT_TYPEMASK) == BT_PE32P) ? BT_ELF64 : BT_ELF32;
 }
 
 std::filesystem::path extractMacOSExecutable(std::filesystem::path path)

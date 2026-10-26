@@ -51,6 +51,21 @@ enum BinaryType {
 /* Run the `file` command from a shell and extract the output of the command. */
 int extractBinaryType(std::filesystem::path path);
 
+/* Is the binary type a Windows executable, which must be launched through wine. */
+bool isWindowsBinary(int binaryType);
+
+/* Get the root directory of a Proton installation (`files` or older `dist`),
+ * or an empty path if not found. */
+std::filesystem::path protonDistPath(const std::filesystem::path& proton_path);
+
+/* Get the path to the wine executable used to launch a Windows game,
+ * or an empty path if not found. */
+std::filesystem::path findWinePath(const Context* context, int gameArch);
+
+/* Get the arch (BT_ELF32 or BT_ELF64) of the process that wine creates for
+ * a Windows game. WoW64 builds of wine run 32-bit games inside a 64-bit process. */
+int wineProcessArch(const std::filesystem::path& winepath, int gameArch);
+
 /* Get the executable from MacOS .app directory. */
 std::filesystem::path extractMacOSExecutable(std::filesystem::path path);
 
