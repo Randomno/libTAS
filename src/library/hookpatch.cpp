@@ -718,11 +718,12 @@ void overwrite_orig_function(void *orig_fun, void* my_function)
 void hook_patch(const char* name, const char* library, void** tramp_function, void* my_function)
 {
     const char* libpathstr = NULL;
+    std::string libpath;
     void* handle;
 
     if (library) {
         /* Find the path to the library */
-        std::string libpath = find_lib(library);
+        libpath = find_lib(library);
 
         if (libpath.empty()) {
             LOG(LL_ERROR, LCF_HOOK, "Could not find %s path", library);
@@ -736,7 +737,7 @@ void hook_patch(const char* name, const char* library, void** tramp_function, vo
     NATIVECALL(handle = dlopen(libpathstr, RTLD_LAZY));
 
     if (!handle) {
-        LOG(LL_ERROR, LCF_HOOK, "Could not load %s", library);
+        LOG(LL_ERROR, LCF_HOOK, "Could not load %s: %s", library, dlerror());
         return;
     }
 
