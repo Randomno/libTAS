@@ -272,6 +272,11 @@ __attribute__((noipa)) void *dlopen(const char *file, int mode) __THROW {
         /* Hook unix side of wine ntdll syscalls */
         hook_ntdll(file);
     }
+
+    if (result && file && std::strstr(file, "/winex11.so") != nullptr) {
+        /* Locate wine x11 driver, which presents window surfaces */
+        register_wine_x11drv(file);
+    }
 #endif
 
     if (result && file && std::strstr(file, "libcoreclr.so") != nullptr)

@@ -28,6 +28,10 @@
 #include "renderhud/RenderHUD.h"
 #include "DeterministicTimer.h"
 #include "global.h"
+#include "checkpoint/ThreadManager.h"
+#ifdef __linux__
+#include "wine/winehook.h"
+#endif
 #include "../shared/sockethelpers.h"
 #include "../shared/messages.h"
 
@@ -61,6 +65,14 @@ OVERRIDE Bool XShmPutImage(
     /* Only handle the screen draw if no other rendering API is used */
     if ((Global::game_info.video & GameInfo::VDPAU) || (Global::game_info.video & GameInfo::OPENGL))
         return orig::XShmPutImage(dpy, d, gc, image, src_x, src_y, dst_x, dst_y, src_width, src_height, send_event);
+
+#ifdef __linux__
+    /* Wine flushes the window surfaces of the whole process from any thread
+     * that waits for messages, so a flush from another thread than the main
+     * one only presents what the game has already drawn. */
+    if (isWineX11drvAddress(__builtin_return_address(0)) && !ThreadManager::isMainThread())
+        return orig::XShmPutImage(dpy, d, gc, image, src_x, src_y, dst_x, dst_y, src_width, src_height, send_event);
+#endif
 
     Global::game_info.video |= GameInfo::XSHM;
     Global::game_info.tosend = true;

@@ -82,6 +82,8 @@ bool get_layout(LibraryLayout& layout)
 
 uintptr_t ntdll_start = 0;
 uintptr_t ntdll_end = 0;
+uintptr_t x11drv_start = 0;
+uintptr_t x11drv_end = 0;
 
 }
 
@@ -135,6 +137,24 @@ bool isWineNtdllAddress(const void* addr)
 {
     uintptr_t a = reinterpret_cast<uintptr_t>(addr);
     return (a >= ntdll_start) && (a < ntdll_end);
+}
+
+void register_wine_x11drv(const char* path)
+{
+    LibraryLayout layout;
+    layout.name = path;
+    if (!get_layout(layout)) {
+        LOG(LL_ERROR, LCF_WINE, "Could not find the memory layout of %s", path);
+        return;
+    }
+    x11drv_start = layout.start;
+    x11drv_end = layout.end;
+}
+
+bool isWineX11drvAddress(const void* addr)
+{
+    uintptr_t a = reinterpret_cast<uintptr_t>(addr);
+    return (a >= x11drv_start) && (a < x11drv_end);
 }
 
 void hook_wine_syscall(const char* library, const char* name, void** orig_function, void* my_function)

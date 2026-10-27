@@ -110,7 +110,7 @@ Note: the game starts up **paused**.
 
 To launch Windows games through Wine, you first need to install Wine on your system (it must be located somewhere in $PATH).
 
-To get audio correctly handled, you need to open winetricks, then select "Select the default wineprefix", "Change settings" and check "sound=alsa".
+libTAS disables the pulseaudio driver of Wine (`winepulse.drv`), so that Wine outputs audio through alsa, which libTAS handles.
 
 In the game executable field, you must set the Windows `.exe` executable (both 32-bit and 64-bit are supported, given that you have the wine version for it). It will detect a Windows executable and launch Wine with the right options.
 

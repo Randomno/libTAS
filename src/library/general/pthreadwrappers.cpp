@@ -30,6 +30,7 @@
 #include "global.h"
 #include "GameHacks.h"
 #include "GlobalState.h"
+#include "wine/winehook.h"
 
 #include <errno.h>
 #include <unistd.h>
@@ -576,6 +577,13 @@ static std::map<pthread_cond_t*, clockid_t>& getCondClock() {
 int pthread_attr_setstack(pthread_attr_t *attr, void *stackaddr, size_t stacksize) __THROW
 {
     RETURN_IF_NATIVE(pthread_attr_setstack, (attr, stackaddr, stacksize), "libpthread.so");
+
+    /* Wine unix ntdll (wine >= 7) builds the syscall frame and the kernel
+     * stack of new threads on the provided stack, and checks for it when
+     * calling back into the Windows side. */
+    if (isWineNtdllAddress(__builtin_return_address(0))) {
+        RETURN_NATIVE(pthread_attr_setstack, (attr, stackaddr, stacksize), "libpthread.so");
+    }
 
     LOGTRACE(LCF_THREAD, "%s called with addr %p and size %d", __func__, stackaddr, stacksize);
     // int ret = orig::pthread_attr_setstack(attr, stackaddr, stacksize);

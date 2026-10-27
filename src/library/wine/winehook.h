@@ -40,6 +40,13 @@ void register_wine_ntdll(const char* path);
  * timeouts from the real time, so its own time calls must not be faked. */
 bool isWineNtdllAddress(const void* addr);
 
+/* Store the address range of wine unix x11 driver library */
+void register_wine_x11drv(const char* path);
+
+/* Returns if the address belongs to wine unix x11 driver library. Wine
+ * flushes the window surfaces from any thread that waits for messages. */
+bool isWineX11drvAddress(const void* addr);
+
 }
 
 #endif

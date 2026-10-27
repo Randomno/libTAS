@@ -136,6 +136,20 @@ void GameThread::set_env_variables(Context *context, int gameArch)
          * that must not be hooked, so tell libtas which one is the game */
         setenv("LIBTAS_WINE_GAME", context->gameexecutable.filename().c_str(), 1);
 
+        /* libtas makes pulseaudio fail so that games use another audio
+         * backend, but winepulse aborts in that case. Disable it so that wine
+         * falls back to winealsa. */
+        std::string dlloverrides;
+        char* olddlloverrides = getenv("WINEDLLOVERRIDES");
+        if (olddlloverrides)
+            dlloverrides = olddlloverrides;
+        if (dlloverrides.find("winepulse") == std::string::npos) {
+            if (!dlloverrides.empty())
+                dlloverrides += ";";
+            dlloverrides += "winepulse.drv=d";
+            setenv("WINEDLLOVERRIDES", dlloverrides.c_str(), 1);
+        }
+
         /* WoW64 wine starts 32-bit games in a 64-bit process, which then
          * restarts itself into a new 32-bit process. Tell libtas to only hook
          * the restarted process. */
